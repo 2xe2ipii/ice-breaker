@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+*/node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build Outputs
+dist/
+build/
+out/
+.next/
+
+# Environment Variables (SECURITY CRITICAL)
+.env
+.env.local
+.env.*.local
+*.env
+
+# System Files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+npm-debug.log*
+
+# Framework specifics
+.vite/

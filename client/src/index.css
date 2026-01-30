@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+:root {
+  --color-cyber-bg: #0a0a0a;
+  --color-neon-blue: #00f3ff;
+  --color-neon-pink: #ff00ff;
+}
+
+body {
+  background-color: var(--color-cyber-bg);
+  color: white;
+  font-family: 'Courier New', monospace;
+}
