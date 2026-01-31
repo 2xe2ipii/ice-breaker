@@ -3,22 +3,30 @@ import { useGameSocket } from '../hooks/useGameSocket';
 import LongPressButton from '../components/LongPressButton';
 import Loader from '../components/Loader';
 
+// Helper for safe storage access
+const safeGetItem = (key) => {
+  try { return localStorage.getItem(key); } catch(e) { return null; }
+};
+const safeSetItem = (key, val) => {
+  try { localStorage.setItem(key, val); } catch(e) { console.warn('Storage failed', e); }
+};
+
 const getSessionId = () => {
-  let id = localStorage.getItem('game_session_id');
+  let id = safeGetItem('game_session_id');
   if (!id) {
     id = Math.random().toString(36).substr(2, 9);
-    localStorage.setItem('game_session_id', id);
+    safeSetItem('game_session_id', id);
   }
   return id;
 };
 
 export default function PlayerView() {
   const { gameState, myScore, myVote, feedback, timer, actions } = useGameSocket();
-  const [name, setName] = useState(localStorage.getItem('player_name') || '');
+  const [name, setName] = useState(safeGetItem('player_name') || '');
   const [hasJoined, setHasJoined] = useState(false);
 
   useEffect(() => {
-    if (localStorage.getItem('joined_before')) {
+    if (safeGetItem('joined_before')) {
       actions.joinGame(name, getSessionId());
       setHasJoined(true);
     }
@@ -26,12 +34,13 @@ export default function PlayerView() {
 
   const handleJoin = () => {
     if (!name.trim()) return;
-    localStorage.setItem('player_name', name);
-    localStorage.setItem('joined_before', 'true');
+    safeSetItem('player_name', name);
+    safeSetItem('joined_before', 'true');
     actions.joinGame(name, getSessionId());
     setHasJoined(true);
   };
 
+  // ... (Rest of the UI remains exactly the same as previous step)
   if (!hasJoined) {
     return (
       <div className="min-h-[100dvh] bg-white flex flex-col items-center justify-center p-6">

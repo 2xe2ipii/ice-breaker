@@ -16,6 +16,7 @@ const io = new Server(server, {
 // --- CONSTANTS ---
 const TOTAL_ROUNDS = questions.length; 
 const ROUND_DURATION = 15; // Seconds
+const HOST_PASSWORD = process.env.HOST_PASSWORD || 'admin'; // Simple Auth
 
 // --- STATE ---
 const INITIAL_STATE = {
@@ -30,25 +31,24 @@ const INITIAL_STATE = {
 let gameState = { ...INITIAL_STATE };
 let playersPersistence = {}; 
 let timerInterval = null;
+// Track authorized admin sockets
+const authorizedHosts = new Set();
 
 // --- HELPERS ---
 
-// Global State (Public info for everyone)
 const buildGlobalState = () => ({
     status: gameState.status,
     currentRoundIndex: gameState.currentRoundIndex,
     roundVotes: gameState.roundVotes,
     timeLeft: gameState.timeLeft,
-    // FIX: Send the actual image path from gameData, handling mixed extensions
+    // Send image path (handled by mixed extensions fix)
     currentImage: questions[gameState.currentRoundIndex]?.content || null, 
-    // If we are in REVEAL or LEADERBOARD or GAME_OVER, send the result. Otherwise null.
     result: (gameState.status === 'REVEAL' || gameState.status === 'LEADERBOARD' || gameState.status === 'GAME_OVER') 
             ? gameState.lastResult 
             : null,
     totalRounds: TOTAL_ROUNDS
 });
 
-// Host-Specific State (Sensitive info like player lists)
 const buildHostState = () => ({
     ...buildGlobalState(),
     players: Object.values(playersPersistence).map(p => ({ 
@@ -62,21 +62,27 @@ const buildHostState = () => ({
 
 io.on('connection', (socket) => {
     
-    // 1. GENERIC STATE REQUEST (Used by Host & Players on reconnect)
+    // 1. GENERIC STATE REQUEST
     socket.on('request_state', () => {
         socket.emit('state_update', buildGlobalState());
     });
 
     // 2. PLAYER JOIN
     socket.on('join_game', ({ name, sessionId }) => {
+        // SECURITY: Sanitize Input (Max 12 chars, Alphanumeric only-ish)
+        const cleanName = String(name || 'Player')
+            .trim()
+            .slice(0, 12)
+            .replace(/[^a-zA-Z0-9 ._-]/g, '') || 'Player';
+
         // Recover or Create Player
         if (playersPersistence[sessionId]) {
             playersPersistence[sessionId].socketId = socket.id;
-            playersPersistence[sessionId].name = name; 
+            playersPersistence[sessionId].name = cleanName; 
         } else {
             playersPersistence[sessionId] = {
                 id: sessionId,
-                name: name || 'Player',
+                name: cleanName,
                 score: 0,
                 lastVote: null,
                 socketId: socket.id
@@ -85,72 +91,86 @@ io.on('connection', (socket) => {
         
         const player = playersPersistence[sessionId];
 
-        // A. Send immediate feedback to this player (Score & Vote status)
+        // Send feedback
         socket.emit('player_data_update', {
             score: player.score,
             myVote: player.lastVote
         });
 
-        // B. PRE-FETCH STRATEGY: Send all image URLs to client for background loading
         const assetUrls = questions.map(q => q.content);
         socket.emit('preload_assets', assetUrls);
 
-        // C. Update Global State for everyone (Player count changed)
         io.emit('state_update', buildGlobalState());
-        
-        // D. Update Host specifically (Needs the list of names)
         io.to('host_room').emit('host_state_update', buildHostState());
     });
 
-    // 3. HOST JOIN (New event to identify the host)
-    socket.on('host_login', () => {
-        socket.join('host_room');
-        socket.emit('host_state_update', buildHostState());
+    // 3. HOST JOIN (Authenticated)
+    socket.on('host_login', (password) => {
+        if (password === HOST_PASSWORD) {
+            authorizedHosts.add(socket.id);
+            socket.join('host_room');
+            socket.emit('host_state_update', buildHostState());
+        } else {
+            console.log(`Failed admin login attempt from ${socket.id}`);
+        }
     });
 
     // 4. SUBMIT VOTE
     socket.on('submit_vote', ({ vote, sessionId }) => {
+        // SECURITY: Validate Input
+        if (!['AI', 'REAL'].includes(vote)) return;
+
         const player = playersPersistence[sessionId];
         
-        // Only accept vote if player exists AND round is active AND they haven't voted
         if (gameState.status === 'QUESTION' && player && !player.lastVote) {
             player.lastVote = vote;
             
-            // Safety check for vote key
             if (gameState.roundVotes[vote] !== undefined) {
                 gameState.roundVotes[vote]++;
             }
             
-            // 1. Notify everyone of the bar chart change
             io.emit('stats_update', gameState.roundVotes);
-            
-            // 2. Confirm vote to the specific player
             socket.emit('vote_registered', vote);
         }
     });
 
-    // --- ADMIN ACTIONS ---
+    // 5. DISCONNECT HANDLING (Fixes "Zombie Players")
+    socket.on('disconnect', () => {
+        if (authorizedHosts.has(socket.id)) {
+            authorizedHosts.delete(socket.id);
+        }
+
+        // Mark player as disconnected
+        Object.values(playersPersistence).forEach(p => {
+            if (p.socketId === socket.id) {
+                p.socketId = null;
+            }
+        });
+
+        // Notify host so UI can update (e.g. show greyed out user)
+        io.to('host_room').emit('host_state_update', buildHostState());
+    });
+
+    // --- ADMIN ACTIONS (Protected) ---
 
     socket.on('admin_start_round', () => {
+        if (!authorizedHosts.has(socket.id)) return; // Auth Check
+
         const roundData = questions[gameState.currentRoundIndex];
         if (!roundData) return;
 
         console.log(`STARTING ROUND ${gameState.currentRoundIndex + 1}`);
 
-        // Reset Round State
         gameState.status = 'QUESTION';
         gameState.roundVotes = { AI: 0, REAL: 0 }; 
         gameState.timeLeft = ROUND_DURATION;
-        gameState.lastResult = null; // Clear previous result
+        gameState.lastResult = null; 
         
-        // Clear player votes for this round
         Object.values(playersPersistence).forEach(p => p.lastVote = null);
 
-        // Broadcast New Round
         io.emit('new_round', { ...roundData, timeLeft: ROUND_DURATION });
         io.emit('state_update', buildGlobalState());
 
-        // Start Timer
         if (timerInterval) clearInterval(timerInterval);
         timerInterval = setInterval(() => {
             gameState.timeLeft--;
@@ -158,42 +178,48 @@ io.on('connection', (socket) => {
             
             if (gameState.timeLeft <= 0) {
                 clearInterval(timerInterval);
-                revealAnswer();
+                try {
+                    revealAnswer();
+                } catch (err) {
+                    console.error("Error in revealAnswer:", err);
+                    clearInterval(timerInterval); // Ensure timer stops on error
+                }
             }
         }, 1000);
     });
 
     socket.on('admin_show_leaderboard', () => {
+        if (!authorizedHosts.has(socket.id)) return;
         gameState.status = 'LEADERBOARD';
         io.emit('state_update', buildGlobalState());
     });
 
     socket.on('admin_next_round', () => {
+        if (!authorizedHosts.has(socket.id)) return;
         if (timerInterval) clearInterval(timerInterval);
 
         const nextIndex = gameState.currentRoundIndex + 1;
 
-        // GAME OVER Logic
         if (nextIndex >= TOTAL_ROUNDS) {
             gameState.status = 'GAME_OVER';
             gameState.gameFinished = true;
             
-            // Calculate final standings
             const finalLeaderboard = Object.values(playersPersistence)
                 .sort((a,b) => b.score - a.score)
-                .slice(0, 10); // Show Top 10 at end
+                .slice(0, 10); 
             
-            gameState.lastResult = { leaderboard: finalLeaderboard }; // Store for refresh
+            gameState.lastResult = { leaderboard: finalLeaderboard };
             
             io.emit('state_update', buildGlobalState());
         } else {
             gameState.currentRoundIndex = nextIndex;
-            gameState.status = 'LOBBY'; // Brief pause before host starts next
+            gameState.status = 'LOBBY'; 
             io.emit('state_update', buildGlobalState());
         }
     });
 
     socket.on('admin_hard_reset', () => {
+        if (!authorizedHosts.has(socket.id)) return;
         if (timerInterval) clearInterval(timerInterval);
         
         gameState = { ...INITIAL_STATE };
@@ -227,7 +253,6 @@ function revealAnswer() {
             player.score += roundScore;
         }
 
-        // Send individual feedback to player (so they see their new total score)
         if (playerSocket) {
             playerSocket.emit('player_data_update', {
                 score: player.score,
@@ -236,8 +261,6 @@ function revealAnswer() {
         }
     });
 
-    // GENERATE RESULT DATA
-    // We sort differently for Round Reveal (Top 5) vs Game Over
     const leaderboard = Object.values(playersPersistence)
         .sort((a,b) => b.score - a.score)
         .slice(0, 5);

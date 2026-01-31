@@ -5,7 +5,7 @@ export function useGameSocket(isHost = false) {
   const [gameState, setGameState] = useState(null);
   const [isConnected, setIsConnected] = useState(socket.connected);
   
-  // Timer State (Separate from gameState to allow frequent updates)
+  // Timer State 
   const [timer, setTimer] = useState(0);
 
   // Player Specific Data
@@ -20,75 +20,97 @@ export function useGameSocket(isHost = false) {
   useEffect(() => { myVoteRef.current = myVote; }, [myVote]);
 
   useEffect(() => {
+    // Handler functions defined inside effect to access state setters
+    // (or could be outside if setters are stable, but this is cleaner for cleanup)
+    
     function onConnect() { 
         setIsConnected(true);
-        if (isHost) socket.emit('host_login');
+        // SECURITY FIX: Send password for simple auth
+        if (isHost) socket.emit('host_login', 'admin'); 
         socket.emit('request_state');
     }
     
     function onDisconnect() { setIsConnected(false); }
 
-    // 1. Generic State Update
-    socket.on('state_update', (state) => {
+    function onStateUpdate(state) {
         setGameState(state);
-        // Sync timer with server state initially
         if (state.timeLeft) setTimer(state.timeLeft);
-    });
+    }
 
-    // 2. Host Specific Update
-    socket.on('host_state_update', (state) => {
+    function onHostStateUpdate(state) {
         setGameState(state);
         if (state.players) setPlayerList(state.players);
-    });
+    }
 
-    // 3. Timer Update
-    socket.on('timer_update', (time) => {
+    function onTimerUpdate(time) {
         setTimer(time);
-    });
+    }
 
-    // 4. Stats (Vote Counts) Update - CRITICAL FIX FOR LIVE BAR
-    socket.on('stats_update', (roundVotes) => {
+    function onStatsUpdate(roundVotes) {
         setGameState(prev => {
             if (!prev) return prev;
             return { ...prev, roundVotes };
         });
-    });
+    }
 
-    // 5. Player Data (Score/Feedback)
-    socket.on('player_data_update', (data) => {
+    function onPlayerDataUpdate(data) {
         if (data.score !== undefined) setMyScore(data.score);
         if (data.myVote !== undefined) setMyVote(data.myVote);
         if (data.roundResult) {
             setFeedback(data.roundResult);
             setTimeout(() => setFeedback(null), 3000); 
         }
-    });
+    }
 
-    socket.on('vote_registered', (vote) => setMyVote(vote));
-    
-    socket.on('new_round', (data) => {
+    function onVoteRegistered(vote) {
+        setMyVote(vote);
+    }
+
+    function onNewRound(data) {
         setMyVote(null);
         setFeedback(null);
         if (data.timeLeft) setTimer(data.timeLeft);
-    });
+    }
 
-    socket.on('preload_assets', (urls) => {
+    function onPreloadAssets(urls) {
         urls.forEach(url => { const img = new Image(); img.src = url; });
-    });
+    }
 
-    socket.on('game_reset_event', () => {
+    function onGameReset() {
         localStorage.clear();
         window.location.reload(); 
-    });
+    }
 
+    // Attach Listeners
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
+    socket.on('state_update', onStateUpdate);
+    socket.on('host_state_update', onHostStateUpdate);
+    socket.on('timer_update', onTimerUpdate);
+    socket.on('stats_update', onStatsUpdate);
+    socket.on('player_data_update', onPlayerDataUpdate);
+    socket.on('vote_registered', onVoteRegistered);
+    socket.on('new_round', onNewRound);
+    socket.on('preload_assets', onPreloadAssets);
+    socket.on('game_reset_event', onGameReset);
 
+    // Initial check
     if (socket.connected) onConnect();
     else socket.connect();
 
+    // CRITICAL FIX: CLEANUP ONLY SPECIFIC LISTENERS
     return () => {
-        socket.off();
+        socket.off('connect', onConnect);
+        socket.off('disconnect', onDisconnect);
+        socket.off('state_update', onStateUpdate);
+        socket.off('host_state_update', onHostStateUpdate);
+        socket.off('timer_update', onTimerUpdate);
+        socket.off('stats_update', onStatsUpdate);
+        socket.off('player_data_update', onPlayerDataUpdate);
+        socket.off('vote_registered', onVoteRegistered);
+        socket.off('new_round', onNewRound);
+        socket.off('preload_assets', onPreloadAssets);
+        socket.off('game_reset_event', onGameReset);
     };
   }, [isHost]);
 
