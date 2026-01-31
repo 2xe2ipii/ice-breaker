@@ -15,170 +15,167 @@ export default function HostView() {
   };
 
   const totalVotes = (gameState.roundVotes?.REAL || 0) + (gameState.roundVotes?.AI || 0);
-  const realPercent = totalVotes === 0 ? 50 : ((gameState.roundVotes?.REAL || 0) / totalVotes) * 100;
+  const realHeight = totalVotes === 0 ? 50 : ((gameState.roundVotes?.REAL || 0) / totalVotes) * 100;
+  const aiHeight = totalVotes === 0 ? 50 : ((gameState.roundVotes?.AI || 0) / totalVotes) * 100;
 
-  const getPillColor = (index) => {
-    const colors = ['bg-[#00fffd]', 'bg-[#fd00ff]', 'bg-[#fffd00]'];
-    return colors[index % 3];
-  };
-
-  // Safe image path: uses server path if available, falls back to local ID
   const currentImageSrc = gameState.currentImage || `/assets/q${gameState.currentRoundIndex + 1}.webp`;
 
   return (
-    <div className="h-[100dvh] w-full bg-white text-slate-900 font-sans flex flex-col overflow-hidden">
+    <div className="h-[100dvh] w-full bg-white text-black font-sans flex flex-col overflow-hidden selection:bg-[#fffd00]">
       
-      {/* HEADER: Added shrink-0 so it never gets squashed */}
-      <div className="px-8 py-6 flex justify-between items-center z-10 shrink-0">
-        <h1 className="text-3xl font-black tracking-tighter uppercase italic transform -skew-x-6">
+      {/* Added pr-8 to fix cutoff */}
+      <div className="h-24 border-b-4 border-black flex justify-between items-center px-10 pr-12 bg-white shrink-0">
+        <h1 className="text-4xl font-black tracking-tighter uppercase italic transform -skew-x-6">
             REAL OR AI?
         </h1>
-        <div className="flex items-center gap-6">
-             <div className="text-slate-400 font-medium uppercase tracking-widest text-sm">
+        <div className="flex items-center gap-8">
+             <div className="text-gray-400 font-bold uppercase tracking-widest text-lg">
                 Round {gameState.currentRoundIndex + 1} / {gameState.totalRounds || '?'}
              </div>
-             <button onClick={handleReset} className="text-xs font-bold uppercase tracking-widest text-rose-500 hover:text-rose-600">
+             <button onClick={handleReset} className="text-sm font-bold uppercase tracking-widest text-rose-500 hover:text-rose-700 border-2 border-rose-500 px-4 py-2 rounded hover:bg-rose-50 transition-all">
                 Reset
              </button>
         </div>
       </div>
 
-      {/* MAIN CONTENT: flex-1 with min-h-0 is CRITICAL for scrolling/containment */}
-      <div className="flex-1 flex flex-col p-6 items-center justify-center w-full max-w-[95%] mx-auto min-h-0">
+      <div className="flex-1 flex w-full h-full relative overflow-hidden">
         
-        {/* 1. LOBBY */}
         {gameState.status === 'LOBBY' && (
-           <div className="w-full flex flex-col h-full min-h-0">
-              <div className="flex justify-between items-end mb-8 border-b-4 border-black pb-6 shrink-0">
-                  <div>
-                    <h2 className="text-6xl font-black mb-2">LOBBY</h2>
-                    <p className="text-slate-500 font-medium text-xl">Waiting for players...</p>
+           <div className="w-full h-full flex">
+              {/* LEFT: QR CODE */}
+              <div className="w-7/12 border-r-4 border-black flex flex-col items-center justify-center p-12 bg-[#00fffd]/10">
+                  <div className="w-full max-w-xl text-center space-y-8 flex flex-col items-center">
+                      <div className="bg-white border-4 border-black p-4 shadow-[12px_12px_0px_rgba(0,0,0,1)] w-[400px] h-[400px] flex items-center justify-center bg-[url('https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=http://localhost:5173')] bg-contain bg-no-repeat bg-center">
+                          {/* Placeholder if image fails */}
+                      </div>
+                      <div className="bg-black text-[#fffd00] px-8 py-4 transform -skew-x-6 shadow-[8px_8px_0px_rgba(0,0,0,0.2)]">
+                          <p className="text-xl font-bold uppercase tracking-widest mb-1">Join at:</p>
+                          <p className="text-5xl font-black tracking-tighter">
+                            {window.location.host}
+                          </p>
+                      </div>
                   </div>
-                  <button onClick={actions.adminStart} className="px-12 py-6 bg-black text-white hover:bg-slate-800 font-bold rounded-xl text-2xl uppercase tracking-widest transition-all shadow-[8px_8px_0px_0px_rgba(0,0,0,0.2)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 active:translate-y-0 active:shadow-none border-4 border-black">
-                    Start Round
-                  </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar min-h-0">
-                 <div className="flex flex-wrap gap-3 content-start">
-                    {playerList.map((p, i) => (
-                        <div key={i} className={`${getPillColor(i)} px-6 py-3 rounded-full border-2 border-black font-bold text-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all`}>
-                            {p.name}
-                        </div>
-                    ))}
-                    {playerList.length === 0 && (
-                        <span className="text-slate-400 italic text-xl">Use your phone to join...</span>
-                    )}
-                 </div>
-              </div>
-              <div className="mt-4 text-right font-bold text-slate-400 uppercase tracking-widest shrink-0">
-                {playerList.length} Players Joined
+              {/* RIGHT: PLAYER LIST */}
+              <div className="w-5/12 flex flex-col bg-white">
+                  <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
+                      <div className="flex justify-between items-baseline mb-6 border-b-4 border-black pb-4 sticky top-0 bg-white z-10">
+                        <h3 className="text-3xl font-black uppercase italic tracking-tighter">
+                            Players
+                        </h3>
+                        <span className="text-xl font-bold text-gray-400">{playerList.length} JOINED</span>
+                      </div>
+                      
+                      <div className="flex flex-col gap-3">
+                        {playerList.map((p, i) => (
+                            <div key={i} className="flex items-center gap-4 p-3 hover:bg-gray-50 transition-colors border-2 border-transparent hover:border-black rounded-lg">
+                                <div className={`w-4 h-4 rounded-full border-2 border-black ${p.connected ? 'bg-[#00fffd] shadow-[2px_2px_0px_rgba(0,0,0,1)]' : 'bg-gray-300'}`} />
+                                <span className="font-bold text-2xl uppercase truncate tracking-tight">{p.name}</span>
+                            </div>
+                        ))}
+                        {playerList.length === 0 && (
+                            <div className="text-gray-400 text-xl font-medium italic text-center mt-10">Waiting for players...</div>
+                        )}
+                      </div>
+                  </div>
+                  <div className="p-8 border-t-4 border-black bg-gray-50">
+                      <button onClick={actions.adminStart} className="w-full py-6 bg-black text-white hover:bg-slate-800 font-black text-3xl uppercase tracking-widest shadow-[8px_8px_0px_rgba(0,0,0,0.2)] hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:-translate-y-1 active:translate-y-0 active:shadow-none transition-all">
+                        Start Game
+                      </button>
+                  </div>
               </div>
            </div>
         )}
 
-        {/* 2. QUESTION */}
         {gameState.status === 'QUESTION' && (
-          <div className="w-full h-full flex flex-col relative min-h-0">
+          <div className="w-full h-full grid grid-cols-[120px_1fr_120px]">
              
-             {/* IMAGE CONTAINER: flex-1 + min-h-0 + relative */}
-             <div className="flex-1 bg-gray-50 rounded-3xl border-4 border-black relative mb-6 overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] min-h-0">
-                
-                {/* ABSOLUTE IMAGE: This forces the image to respect the parent's size */}
-                <img src={currentImageSrc} className="absolute inset-0 w-full h-full object-contain p-4" />
-                
-                {/* Timer (Absolute) */}
-                <div className="absolute top-6 right-6 w-20 h-20 bg-white border-4 border-black rounded-full flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] z-10">
-                    <span className="text-3xl font-black">{timer}</span>
+             <div className="h-full border-r-4 border-black flex flex-col">
+                <div 
+                    className="bg-[#fd00ff] w-full border-b-4 border-black transition-all duration-500 relative flex items-center justify-center" 
+                    style={{ height: `${aiHeight}%` }}
+                >
+                    <span className="absolute -rotate-90 text-white font-black text-2xl tracking-widest whitespace-nowrap">
+                        AI ({gameState.roundVotes?.AI || 0})
+                    </span>
+                </div>
+                <div 
+                    className="bg-[#00fffd] w-full flex-1 transition-all duration-500 relative flex items-center justify-center"
+                >
+                    <span className="absolute -rotate-90 text-black font-black text-2xl tracking-widest whitespace-nowrap">
+                        REAL ({gameState.roundVotes?.REAL || 0})
+                    </span>
                 </div>
              </div>
-             
-             {/* Vote Bar: shrink-0 ensures it never gets pushed off screen */}
-             <div className="h-24 w-full bg-white rounded-xl flex overflow-hidden border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative shrink-0">
-                <div 
-                    className="bg-[#00fffd] flex items-center justify-center text-black font-black text-2xl tracking-widest transition-all duration-300 border-r-4 border-black whitespace-nowrap overflow-hidden" 
-                    style={{ width: `${realPercent}%` }}
-                >
-                  REAL ({gameState.roundVotes?.REAL || 0})
+
+             <div className="h-full bg-gray-50 relative flex items-center justify-center p-12 overflow-hidden">
+                <div className="w-full h-full relative flex items-center justify-center bg-white border-4 border-black rounded-[3rem] shadow-[12px_12px_0px_rgba(0,0,0,1)] overflow-hidden">
+                    <img src={currentImageSrc} className="absolute inset-0 w-full h-full object-contain p-4" />
                 </div>
-                <div className="bg-[#fd00ff] flex items-center justify-center text-white font-black text-2xl tracking-widest transition-all duration-300 flex-1 whitespace-nowrap overflow-hidden">
-                   AI ({gameState.roundVotes?.AI || 0})
-                </div>
+             </div>
+
+             <div className="h-full border-l-4 border-black flex flex-col items-center justify-center bg-white">
+                 <div className="w-20 h-20 rounded-full border-4 border-black flex items-center justify-center font-black text-4xl shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+                    {timer}
+                 </div>
              </div>
           </div>
         )}
 
-        {/* 3. REVEAL */}
         {gameState.status === 'REVEAL' && gameState.result && (
-           <div className="w-full h-full flex flex-col items-center min-h-0">
+           <div className="w-full h-full flex flex-col items-center justify-center bg-white p-8">
               
-              <div className="mb-4 text-center shrink-0">
-                  <h1 className="text-5xl font-black uppercase">
-                    THE ANSWER IS <span className={`px-6 py-2 ml-4 ${gameState.result.correctAnswer === 'AI' ? 'bg-[#fd00ff] text-white' : 'bg-[#00fffd] text-black'} border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] rounded-xl`}>{gameState.result.correctAnswer}</span>
-                  </h1>
-              </div>
-              
-              <div className="flex-1 w-full bg-gray-50 rounded-3xl border-4 border-black relative overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] min-h-0">
-                  <img src={currentImageSrc} className="absolute inset-0 w-full h-full object-contain p-4" />
+              <div className="flex items-center gap-6 mb-8 animate-in slide-in-from-top-10 duration-500">
+                  <h2 className="text-5xl font-black uppercase italic">The Answer Is</h2>
+                  <div className={`px-10 py-4 text-6xl font-black uppercase border-4 border-black shadow-[8px_8px_0px_rgba(0,0,0,1)] transform -skew-x-6 ${gameState.result.correctAnswer === 'AI' ? 'bg-[#fd00ff] text-white' : 'bg-[#00fffd] text-black'}`}>
+                    {gameState.result.correctAnswer}
+                  </div>
               </div>
 
-              <div className="mt-8 flex gap-4 shrink-0">
-                  <button onClick={actions.adminShowScores} className="px-10 py-4 bg-white border-4 border-black hover:bg-gray-100 text-black font-bold rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] uppercase tracking-widest text-xl transition-all hover:-translate-y-1">
+              <div className="flex-1 w-full max-w-5xl border-4 border-black rounded-[2rem] bg-gray-100 overflow-hidden relative shadow-[12px_12px_0px_rgba(0,0,0,1)] mb-8">
+                  <img src={currentImageSrc} className="absolute inset-0 w-full h-full object-contain p-6" />
+              </div>
+
+              <div className="flex gap-6 h-20">
+                  <button onClick={actions.adminShowScores} className="px-10 h-full bg-white border-4 border-black hover:bg-gray-50 text-black font-bold text-xl uppercase tracking-widest shadow-[6px_6px_0px_rgba(0,0,0,1)] active:translate-y-1 active:shadow-none transition-all">
                     View Leaderboard
                   </button>
-                  <button onClick={actions.adminNext} className="px-10 py-4 bg-black text-white hover:bg-slate-800 border-4 border-black font-bold rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] uppercase tracking-widest text-xl transition-all hover:-translate-y-1">
+                  <button onClick={actions.adminNext} className="px-10 h-full bg-black text-[#fffd00] border-4 border-black font-black text-xl uppercase tracking-widest shadow-[6px_6px_0px_rgba(0,0,0,1)] active:translate-y-1 active:shadow-none transition-all">
                     Next Round
                   </button>
               </div>
            </div>
         )}
 
-        {/* 4. LEADERBOARD */}
         {(gameState.status === 'LEADERBOARD' || gameState.status === 'GAME_OVER') && gameState.result && (
-           <div className="w-full h-full flex flex-col items-center min-h-0">
-              <h1 className="text-6xl font-black mb-6 italic uppercase transform -skew-x-6 shrink-0">
-                {gameState.status === 'GAME_OVER' ? 'FINAL STANDINGS' : 'LEADERBOARD'}
-              </h1>
+           <div className="w-full h-full flex flex-col items-center justify-center p-12 bg-[#fffd00]">
+              <div className="bg-white border-4 border-black p-12 shadow-[16px_16px_0px_rgba(0,0,0,1)] w-full max-w-4xl max-h-full flex flex-col">
+                  <h1 className="text-6xl font-black mb-8 italic uppercase text-center border-b-4 border-black pb-6">
+                    {gameState.status === 'GAME_OVER' ? 'FINAL STANDINGS' : 'LEADERBOARD'}
+                  </h1>
 
-              {/* Scrollable container with min-h-0 */}
-              <div className="w-full max-w-4xl flex-1 overflow-y-auto pr-4 custom-scrollbar bg-white rounded-3xl border-4 border-black shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] p-8 min-h-0">
-                  {gameState.result.leaderboard.map((p, i, arr) => {
-                      const isTied = i > 0 && p.score === arr[i-1].score;
-                      let rank = i + 1;
-                      if (isTied) {
-                          let tempIndex = i;
-                          while (tempIndex > 0 && arr[tempIndex-1].score === p.score) {
-                              tempIndex--;
-                          }
-                          rank = tempIndex + 1;
-                      }
-
-                      return (
-                        <div key={i} className="flex items-center py-4 border-b-2 border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
-                            <div className="w-24 text-5xl font-black text-slate-200 italic">
-                                #{rank}
-                            </div>
-                            <div className="flex-1 text-2xl font-bold uppercase">
-                                {p.name}
-                            </div>
-                            <div className="text-3xl font-mono font-black text-[#fd00ff]">
-                                {p.score}
-                            </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar pr-4">
+                      {gameState.result.leaderboard.map((p, i) => (
+                        <div key={i} className="flex items-center py-4 border-b-2 border-gray-100 last:border-0">
+                            <span className="w-16 text-4xl font-black italic text-gray-300">#{i+1}</span>
+                            <span className="flex-1 text-3xl font-bold uppercase truncate px-4">{p.name}</span>
+                            <span className="text-4xl font-mono font-black text-[#fd00ff]">{p.score}</span>
                         </div>
-                      );
-                  })}
-              </div>
+                      ))}
+                  </div>
 
-              <div className="mt-6 shrink-0">
-                {gameState.status !== 'GAME_OVER' ? (
-                     <button onClick={actions.adminNext} className="px-12 py-5 bg-[#fffd00] text-black border-4 border-black font-bold rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] uppercase tracking-widest text-2xl transition-all hover:-translate-y-1 active:translate-y-0 active:shadow-none">
-                        Next Round
-                     </button>
-                ) : (
-                     <button onClick={handleReset} className="px-12 py-5 bg-rose-500 text-white border-4 border-black font-bold rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] uppercase tracking-widest text-2xl transition-all">
-                        Reset Game
-                     </button>
-                )}
+                  <div className="mt-8 pt-6 border-t-4 border-black flex justify-center">
+                    {gameState.status !== 'GAME_OVER' ? (
+                         <button onClick={actions.adminNext} className="px-12 py-4 bg-black text-white font-black text-2xl uppercase tracking-widest hover:-translate-y-1 shadow-[6px_6px_0px_rgba(0,0,0,0.2)] transition-all">
+                            Next Round
+                         </button>
+                    ) : (
+                         <button onClick={handleReset} className="px-12 py-4 bg-rose-500 text-white font-black text-2xl uppercase tracking-widest hover:-translate-y-1 shadow-[6px_6px_0px_rgba(0,0,0,1)] border-4 border-black transition-all">
+                            Reset Game
+                         </button>
+                    )}
+                  </div>
               </div>
            </div>
         )}
