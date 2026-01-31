@@ -21,10 +21,10 @@ const ROUND_DURATION = 15; // Seconds
 const INITIAL_STATE = {
     status: 'LOBBY',           // LOBBY, QUESTION, REVEAL, LEADERBOARD, GAME_OVER
     currentRoundIndex: 0,
-    roundVotes: { AI: 0, HUMAN: 0 },
+    roundVotes: { AI: 0, REAL: 0 }, // CHANGED: HUMAN -> REAL
     timeLeft: 0,
-    lastResult: null,          // CRITICAL FIX: Persist the result for refreshes
-    gameFinished: false        // CRITICAL FIX: Track if game is done
+    lastResult: null,          // Persist the result for refreshes
+    gameFinished: false        // Track if game is done
 };
 
 let gameState = { ...INITIAL_STATE };
@@ -39,7 +39,7 @@ const buildGlobalState = () => ({
     currentRoundIndex: gameState.currentRoundIndex,
     roundVotes: gameState.roundVotes,
     timeLeft: gameState.timeLeft,
-    // If we are in REVEAL or LEADERBOARD, send the result. Otherwise null.
+    // If we are in REVEAL or LEADERBOARD or GAME_OVER, send the result. Otherwise null.
     result: (gameState.status === 'REVEAL' || gameState.status === 'LEADERBOARD' || gameState.status === 'GAME_OVER') 
             ? gameState.lastResult 
             : null,
@@ -62,7 +62,6 @@ io.on('connection', (socket) => {
     
     // 1. GENERIC STATE REQUEST (Used by Host & Players on reconnect)
     socket.on('request_state', () => {
-        // We don't know if this is host or player yet, so send generic
         socket.emit('state_update', buildGlobalState());
     });
 
@@ -71,7 +70,6 @@ io.on('connection', (socket) => {
         // Recover or Create Player
         if (playersPersistence[sessionId]) {
             playersPersistence[sessionId].socketId = socket.id;
-            // Update name if they decided to change it
             playersPersistence[sessionId].name = name; 
         } else {
             playersPersistence[sessionId] = {
@@ -115,7 +113,11 @@ io.on('connection', (socket) => {
         // Only accept vote if player exists AND round is active AND they haven't voted
         if (gameState.status === 'QUESTION' && player && !player.lastVote) {
             player.lastVote = vote;
-            gameState.roundVotes[vote]++;
+            
+            // Safety check for vote key
+            if (gameState.roundVotes[vote] !== undefined) {
+                gameState.roundVotes[vote]++;
+            }
             
             // 1. Notify everyone of the bar chart change
             io.emit('stats_update', gameState.roundVotes);
@@ -135,7 +137,7 @@ io.on('connection', (socket) => {
 
         // Reset Round State
         gameState.status = 'QUESTION';
-        gameState.roundVotes = { AI: 0, HUMAN: 0 };
+        gameState.roundVotes = { AI: 0, REAL: 0 }; // CHANGED: HUMAN -> REAL
         gameState.timeLeft = ROUND_DURATION;
         gameState.lastResult = null; // Clear previous result
         
@@ -169,7 +171,7 @@ io.on('connection', (socket) => {
 
         const nextIndex = gameState.currentRoundIndex + 1;
 
-        // CRITICAL FIX: Game Over Logic
+        // GAME OVER Logic
         if (nextIndex >= TOTAL_ROUNDS) {
             gameState.status = 'GAME_OVER';
             gameState.gameFinished = true;
@@ -193,7 +195,7 @@ io.on('connection', (socket) => {
         if (timerInterval) clearInterval(timerInterval);
         
         gameState = { ...INITIAL_STATE };
-        gameState.roundVotes = { AI: 0, HUMAN: 0 };
+        gameState.roundVotes = { AI: 0, REAL: 0 }; // CHANGED: HUMAN -> REAL
         playersPersistence = {}; 
         
         io.emit('game_reset_event');
@@ -208,16 +210,18 @@ function revealAnswer() {
     gameState.status = 'REVEAL'; 
     const currentQ = questions[gameState.currentRoundIndex];
     
+    // COMPATIBILITY FIX: Map "HUMAN" in data to "REAL"
+    let dbAnswer = String(currentQ.answer || '').toUpperCase();
+    if (dbAnswer === 'HUMAN') dbAnswer = 'REAL';
+
     // CALCULATE SCORES
     Object.values(playersPersistence).forEach(player => {
         const playerVote = String(player.lastVote || '').toUpperCase();
-        const correct = String(currentQ.answer || '').toUpperCase();
         const playerSocket = io.sockets.sockets.get(player.socketId);
 
         let roundScore = 0;
-        if (playerVote === correct) {
+        if (playerVote === dbAnswer) {
             roundScore = 100; // Base score
-            // Bonus could be added here based on time if we tracked it
             player.score += roundScore;
         }
 
@@ -225,7 +229,7 @@ function revealAnswer() {
         if (playerSocket) {
             playerSocket.emit('player_data_update', {
                 score: player.score,
-                roundResult: playerVote === correct ? 'CORRECT' : 'WRONG'
+                roundResult: playerVote === dbAnswer ? 'CORRECT' : 'WRONG'
             });
         }
     });
@@ -237,7 +241,7 @@ function revealAnswer() {
         .slice(0, 5);
 
     gameState.lastResult = {
-        correctAnswer: currentQ.answer.toUpperCase(),
+        correctAnswer: dbAnswer,
         stats: gameState.roundVotes,
         leaderboard: leaderboard
     };

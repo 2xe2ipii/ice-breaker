@@ -6,7 +6,10 @@ export default function LongPressButton({ onClick, label, colorClass, disabled, 
   const intervalRef = useRef(null);
 
   useEffect(() => {
-    if (pressing && !disabled && !selected) {
+    // If already selected, do nothing
+    if (selected) return;
+
+    if (pressing && !disabled) {
       intervalRef.current = setInterval(() => {
         setProgress((prev) => {
           if (prev >= 100) {
@@ -14,8 +17,8 @@ export default function LongPressButton({ onClick, label, colorClass, disabled, 
             onClick();
             return 100;
           }
-          // +1% every 15ms = 1.5 seconds total duration
-          return prev + 1; 
+          // Speed: 1.5 seconds to fill
+          return prev + 1.5; 
         });
       }, 15);
     } else {
@@ -23,19 +26,22 @@ export default function LongPressButton({ onClick, label, colorClass, disabled, 
       clearInterval(intervalRef.current);
     }
     return () => clearInterval(intervalRef.current);
-  }, [pressing, disabled, selected]);
+  }, [pressing, disabled, selected, onClick]);
 
+  // If selected, we show the "Pressed Down" state permanently
+  // No shadow, moved down by 4px
   if (selected) {
     return (
-      <div className={`w-full h-24 rounded flex items-center justify-center text-xl font-bold text-white ring-4 ring-white ${colorClass}`}>
-        LOCKED IN
+      <div className={`w-full h-24 rounded-xl flex items-center justify-center text-3xl font-black text-white border-4 border-black translate-y-[4px] ${colorClass} opacity-100`}>
+        {label} <span className="ml-2 text-2xl">✓</span>
       </div>
     );
   }
 
   return (
     <button
-      className={`relative w-full h-24 rounded overflow-hidden border border-slate-600 bg-slate-800 transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
+      className={`relative w-full h-24 rounded-xl overflow-hidden border-4 border-black bg-white transition-all 
+      ${disabled ? 'opacity-50 cursor-not-allowed' : 'active:translate-y-[4px] active:shadow-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]'}`}
       onMouseDown={() => setPressing(true)}
       onMouseUp={() => setPressing(false)}
       onMouseLeave={() => setPressing(false)}
@@ -43,12 +49,15 @@ export default function LongPressButton({ onClick, label, colorClass, disabled, 
       onTouchEnd={() => setPressing(false)}
       disabled={disabled}
     >
+      {/* Background Fill Animation */}
       <div 
-        className={`absolute left-0 top-0 bottom-0 ${colorClass} opacity-80 transition-all duration-75 ease-linear`} 
+        className={`absolute left-0 top-0 bottom-0 ${colorClass} transition-all duration-75 ease-linear`} 
         style={{ width: `${progress}%` }}
       />
-      <div className="relative z-10 text-white font-bold text-xl tracking-widest uppercase pointer-events-none">
-        {progress > 15 ? 'HOLD TO CONFIRM...' : label}
+      
+      {/* Label (Always visible) */}
+      <div className={`relative z-10 font-black text-3xl tracking-widest uppercase pointer-events-none mix-blend-multiply ${progress > 50 ? 'text-white mix-blend-normal' : 'text-black'}`}>
+        {label}
       </div>
     </button>
   );

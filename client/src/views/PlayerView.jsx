@@ -35,13 +35,13 @@ export default function PlayerView() {
   if (!hasJoined) {
     return (
       <div className="min-h-[100dvh] bg-white flex flex-col items-center justify-center p-6">
-        <h1 className="text-4xl font-black italic uppercase mb-8">Real or AI?</h1>
+        <h1 className="text-4xl font-black italic uppercase mb-8 transform -skew-x-6">Real or AI?</h1>
         <input 
-          className="bg-gray-100 border-2 border-black text-black text-lg p-4 w-full rounded-xl mb-4 focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all"
+          className="bg-gray-100 border-4 border-black text-black font-bold text-lg p-4 w-full rounded-xl mb-4 focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all"
           placeholder="ENTER YOUR NAME"
           value={name} onChange={e => setName(e.target.value)}
         />
-        <button onClick={handleJoin} className="w-full bg-[#fffd00] hover:bg-[#ebe900] text-black border-2 border-black p-4 font-bold text-xl rounded-xl tracking-wider shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-[2px] active:shadow-none transition-all">
+        <button onClick={handleJoin} className="w-full bg-[#fffd00] hover:bg-[#ebe900] text-black border-4 border-black p-4 font-bold text-2xl rounded-xl tracking-wider shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-[4px] active:shadow-none transition-all uppercase">
           JOIN GAME
         </button>
       </div>
@@ -60,7 +60,7 @@ export default function PlayerView() {
     <div className="min-h-[100dvh] bg-white text-slate-900 flex flex-col relative overflow-hidden">
       
       {/* HEADER */}
-      <div className="bg-white p-4 border-b-2 border-black flex justify-between items-center z-10 sticky top-0">
+      <div className="bg-white p-4 border-b-4 border-black flex justify-between items-center z-10 sticky top-0">
         <span className="font-bold text-lg truncate max-w-[50%] uppercase">{name}</span>
         <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Score</span>
@@ -71,7 +71,7 @@ export default function PlayerView() {
       {/* FEEDBACK OVERLAY */}
       {feedback && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/90 backdrop-blur animate-in fade-in zoom-in duration-200">
-            <h1 className={`text-6xl font-black uppercase tracking-tighter italic ${feedback === 'CORRECT' ? 'text-[#00c9c7]' : 'text-rose-500'}`}>
+            <h1 className={`text-6xl font-black uppercase tracking-tighter italic ${feedback === 'CORRECT' ? 'text-[#00c9c7]' : 'text-rose-500'} drop-shadow-[4px_4px_0px_rgba(0,0,0,1)]`}>
                 {feedback}
             </h1>
         </div>
@@ -84,8 +84,8 @@ export default function PlayerView() {
         {gameState.status === 'LOBBY' && (
            <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6">
               <div className="w-16 h-16 border-4 border-black border-t-[#fd00ff] rounded-full animate-spin"></div>
-              <p className="text-slate-900 font-bold text-lg animate-pulse">
-                WAITING FOR HOST TO START...
+              <p className="text-slate-900 font-bold text-lg animate-pulse uppercase">
+                Waiting for host...
               </p>
            </div>
         )}
@@ -93,25 +93,25 @@ export default function PlayerView() {
         {/* B. QUESTION */}
         {gameState.status === 'QUESTION' && (
             <>
-                <div className="bg-gray-100 rounded-2xl border-2 border-black overflow-hidden flex items-center justify-center mb-6 relative shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] aspect-square">
+                <div className="bg-gray-100 rounded-2xl border-4 border-black overflow-hidden flex items-center justify-center mb-6 relative shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] aspect-square">
                     <img src={`/assets/q${gameState.currentRoundIndex + 1}.webp`} className="object-cover h-full w-full" />
                     
                     {/* Timer */}
-                    <div className="absolute top-2 right-2 w-10 h-10 bg-black text-white rounded-full flex items-center justify-center font-bold">
+                    <div className="absolute top-2 right-2 w-12 h-12 bg-white text-black border-4 border-black rounded-full flex items-center justify-center font-black text-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                         {timer}
                     </div>
                 </div>
 
                 <div className="flex-1 flex flex-col gap-4 justify-end">
                     <LongPressButton 
-                        label="HUMAN" 
-                        colorClass="bg-[#00fffd] text-black border-black" // Cyan
-                        onClick={() => actions.submitVote('HUMAN', getSessionId())}
-                        selected={myVote === 'HUMAN'} disabled={!!myVote}
+                        label="REAL" 
+                        colorClass="bg-[#00fffd]" // Cyan
+                        onClick={() => actions.submitVote('REAL', getSessionId())}
+                        selected={myVote === 'REAL'} disabled={!!myVote}
                     />
                     <LongPressButton 
                         label="AI" 
-                        colorClass="bg-[#fd00ff] text-white border-black" // Magenta
+                        colorClass="bg-[#fd00ff]" // Magenta
                         onClick={() => actions.submitVote('AI', getSessionId())}
                         selected={myVote === 'AI'} disabled={!!myVote}
                     />
