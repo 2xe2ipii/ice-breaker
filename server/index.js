@@ -1,3 +1,4 @@
+// server/index.js
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -12,40 +13,69 @@ const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
+// --- CONSTANTS ---
+const TOTAL_ROUNDS = questions.length; 
+const ROUND_DURATION = 15; // Seconds
+
+// --- STATE ---
 const INITIAL_STATE = {
-    status: 'LOBBY',
+    status: 'LOBBY',           // LOBBY, QUESTION, REVEAL, LEADERBOARD, GAME_OVER
     currentRoundIndex: 0,
     roundVotes: { AI: 0, HUMAN: 0 },
-    timeLeft: 0
+    timeLeft: 0,
+    lastResult: null,          // CRITICAL FIX: Persist the result for refreshes
+    gameFinished: false        // CRITICAL FIX: Track if game is done
 };
 
 let gameState = { ...INITIAL_STATE };
 let playersPersistence = {}; 
 let timerInterval = null;
 
-const buildClientState = () => ({
+// --- HELPERS ---
+
+// Global State (Public info for everyone)
+const buildGlobalState = () => ({
     status: gameState.status,
     currentRoundIndex: gameState.currentRoundIndex,
     roundVotes: gameState.roundVotes,
-    timeLeft: gameState.timeLeft
+    timeLeft: gameState.timeLeft,
+    // If we are in REVEAL or LEADERBOARD, send the result. Otherwise null.
+    result: (gameState.status === 'REVEAL' || gameState.status === 'LEADERBOARD' || gameState.status === 'GAME_OVER') 
+            ? gameState.lastResult 
+            : null,
+    totalRounds: TOTAL_ROUNDS
 });
 
+// Host-Specific State (Sensitive info like player lists)
+const buildHostState = () => ({
+    ...buildGlobalState(),
+    players: Object.values(playersPersistence).map(p => ({ 
+        name: p.name, 
+        score: p.score, 
+        connected: p.socketId !== null 
+    }))
+});
+
+// --- SOCKET LOGIC ---
+
 io.on('connection', (socket) => {
-    // 1. Handshake
+    
+    // 1. GENERIC STATE REQUEST (Used by Host & Players on reconnect)
     socket.on('request_state', () => {
-        socket.emit('state_update', buildClientState());
-        io.emit('player_count', Object.keys(playersPersistence).length);
+        // We don't know if this is host or player yet, so send generic
+        socket.emit('state_update', buildGlobalState());
     });
 
-    // 2. Join
+    // 2. PLAYER JOIN
     socket.on('join_game', ({ name, sessionId }) => {
-        // If this session exists, update the socket ID so we can talk to them
+        // Recover or Create Player
         if (playersPersistence[sessionId]) {
             playersPersistence[sessionId].socketId = socket.id;
-            playersPersistence[sessionId].name = name; // Update name if they changed it
+            // Update name if they decided to change it
+            playersPersistence[sessionId].name = name; 
         } else {
-            // New player
             playersPersistence[sessionId] = {
+                id: sessionId,
                 name: name || 'Player',
                 score: 0,
                 lastVote: null,
@@ -53,22 +83,44 @@ io.on('connection', (socket) => {
             };
         }
         
-        socket.emit('state_update', buildClientState());
-        io.emit('player_count', Object.keys(playersPersistence).length);
-        
         const player = playersPersistence[sessionId];
-        if (gameState.status === 'QUESTION' && player.lastVote) {
-             socket.emit('vote_registered', player.lastVote);
-        }
+
+        // A. Send immediate feedback to this player (Score & Vote status)
+        socket.emit('player_data_update', {
+            score: player.score,
+            myVote: player.lastVote
+        });
+
+        // B. PRE-FETCH STRATEGY: Send all image URLs to client for background loading
+        const assetUrls = questions.map(q => q.content);
+        socket.emit('preload_assets', assetUrls);
+
+        // C. Update Global State for everyone (Player count changed)
+        io.emit('state_update', buildGlobalState());
+        
+        // D. Update Host specifically (Needs the list of names)
+        io.to('host_room').emit('host_state_update', buildHostState());
     });
 
-    // 3. Vote
+    // 3. HOST JOIN (New event to identify the host)
+    socket.on('host_login', () => {
+        socket.join('host_room');
+        socket.emit('host_state_update', buildHostState());
+    });
+
+    // 4. SUBMIT VOTE
     socket.on('submit_vote', ({ vote, sessionId }) => {
         const player = playersPersistence[sessionId];
+        
+        // Only accept vote if player exists AND round is active AND they haven't voted
         if (gameState.status === 'QUESTION' && player && !player.lastVote) {
             player.lastVote = vote;
             gameState.roundVotes[vote]++;
+            
+            // 1. Notify everyone of the bar chart change
             io.emit('stats_update', gameState.roundVotes);
+            
+            // 2. Confirm vote to the specific player
             socket.emit('vote_registered', vote);
         }
     });
@@ -77,27 +129,29 @@ io.on('connection', (socket) => {
 
     socket.on('admin_start_round', () => {
         const roundData = questions[gameState.currentRoundIndex];
-        if (!roundData) {
-            console.error("CRITICAL: Question data missing for index", gameState.currentRoundIndex);
-            return; 
-        }
+        if (!roundData) return;
 
         console.log(`STARTING ROUND ${gameState.currentRoundIndex + 1}`);
 
+        // Reset Round State
         gameState.status = 'QUESTION';
         gameState.roundVotes = { AI: 0, HUMAN: 0 };
-        gameState.timeLeft = 15;
+        gameState.timeLeft = ROUND_DURATION;
+        gameState.lastResult = null; // Clear previous result
         
+        // Clear player votes for this round
         Object.values(playersPersistence).forEach(p => p.lastVote = null);
 
-        io.emit('new_round', { ...roundData, timeLeft: 15 });
-        io.emit('state_update', buildClientState());
+        // Broadcast New Round
+        io.emit('new_round', { ...roundData, timeLeft: ROUND_DURATION });
+        io.emit('state_update', buildGlobalState());
 
+        // Start Timer
         if (timerInterval) clearInterval(timerInterval);
-
         timerInterval = setInterval(() => {
             gameState.timeLeft--;
             io.emit('timer_update', gameState.timeLeft);
+            
             if (gameState.timeLeft <= 0) {
                 clearInterval(timerInterval);
                 revealAnswer();
@@ -107,38 +161,44 @@ io.on('connection', (socket) => {
 
     socket.on('admin_show_leaderboard', () => {
         gameState.status = 'LEADERBOARD';
-        io.emit('state_update', buildClientState());
+        io.emit('state_update', buildGlobalState());
     });
 
     socket.on('admin_next_round', () => {
         if (timerInterval) clearInterval(timerInterval);
 
-        gameState.currentRoundIndex++;
-        if (gameState.currentRoundIndex >= questions.length) {
-            gameState.currentRoundIndex = 0; 
+        const nextIndex = gameState.currentRoundIndex + 1;
+
+        // CRITICAL FIX: Game Over Logic
+        if (nextIndex >= TOTAL_ROUNDS) {
+            gameState.status = 'GAME_OVER';
+            gameState.gameFinished = true;
+            
+            // Calculate final standings
+            const finalLeaderboard = Object.values(playersPersistence)
+                .sort((a,b) => b.score - a.score)
+                .slice(0, 10); // Show Top 10 at end
+            
+            gameState.lastResult = { leaderboard: finalLeaderboard }; // Store for refresh
+            
+            io.emit('state_update', buildGlobalState());
+        } else {
+            gameState.currentRoundIndex = nextIndex;
+            gameState.status = 'LOBBY'; // Brief pause before host starts next
+            io.emit('state_update', buildGlobalState());
         }
-        
-        console.log(`MOVING TO LOBBY FOR ROUND ${gameState.currentRoundIndex + 1}`);
-        
-        gameState.status = 'LOBBY';
-        io.emit('state_update', buildClientState());
     });
 
-    // --- THE FIX IS HERE ---
     socket.on('admin_hard_reset', () => {
         if (timerInterval) clearInterval(timerInterval);
         
-        // 1. Reset Game State
         gameState = { ...INITIAL_STATE };
         gameState.roundVotes = { AI: 0, HUMAN: 0 };
-        
-        // 2. NUKE THE PLAYERS (This deletes the ghosts)
         playersPersistence = {}; 
         
-        // 3. Tell everyone to get lost (refresh)
         io.emit('game_reset_event');
-        io.emit('state_update', buildClientState());
-        io.emit('player_count', 0); // Update host count to 0
+        io.emit('state_update', buildGlobalState());
+        io.to('host_room').emit('host_state_update', buildHostState());
     });
 });
 
@@ -148,25 +208,42 @@ function revealAnswer() {
     gameState.status = 'REVEAL'; 
     const currentQ = questions[gameState.currentRoundIndex];
     
-    if (!currentQ) return;
-
+    // CALCULATE SCORES
     Object.values(playersPersistence).forEach(player => {
         const playerVote = String(player.lastVote || '').toUpperCase();
         const correct = String(currentQ.answer || '').toUpperCase();
-        
+        const playerSocket = io.sockets.sockets.get(player.socketId);
+
+        let roundScore = 0;
         if (playerVote === correct) {
-            player.score += 100;
+            roundScore = 100; // Base score
+            // Bonus could be added here based on time if we tracked it
+            player.score += roundScore;
+        }
+
+        // Send individual feedback to player (so they see their new total score)
+        if (playerSocket) {
+            playerSocket.emit('player_data_update', {
+                score: player.score,
+                roundResult: playerVote === correct ? 'CORRECT' : 'WRONG'
+            });
         }
     });
 
-    io.emit('round_result', {
+    // GENERATE RESULT DATA
+    // We sort differently for Round Reveal (Top 5) vs Game Over
+    const leaderboard = Object.values(playersPersistence)
+        .sort((a,b) => b.score - a.score)
+        .slice(0, 5);
+
+    gameState.lastResult = {
         correctAnswer: currentQ.answer.toUpperCase(),
         stats: gameState.roundVotes,
-        leaderboard: Object.values(playersPersistence)
-            .sort((a,b) => b.score - a.score)
-            .slice(0, 5)
-    });
-    io.emit('state_update', buildClientState());
+        leaderboard: leaderboard
+    };
+
+    io.emit('round_result', gameState.lastResult);
+    io.emit('state_update', buildGlobalState());
 }
 
 server.listen(3001, () => console.log('SERVER RUNNING ON 3001'));

@@ -1,54 +1,71 @@
 import { useEffect, useState, useRef } from 'react';
 import { socket } from '../socket';
 
-export function useGameSocket() {
+export function useGameSocket(isHost = false) {
   const [gameState, setGameState] = useState(null);
   const [isConnected, setIsConnected] = useState(socket.connected);
   
-  const [stats, setStats] = useState({ HUMAN: 0, AI: 0 });
-  const [timer, setTimer] = useState(0);
-  const [result, setResult] = useState(null);
+  // Player Specific Data
+  const [myScore, setMyScore] = useState(0);
   const [myVote, setMyVote] = useState(null);
   const [feedback, setFeedback] = useState(null);
 
-  // CRITICAL FIX: Use ref to track vote without re-binding listeners
+  // Host Specific Data
+  const [playerList, setPlayerList] = useState([]);
+
+  // Refs for stale closure prevention
   const myVoteRef = useRef(null);
+  useEffect(() => { myVoteRef.current = myVote; }, [myVote]);
 
   useEffect(() => {
-    myVoteRef.current = myVote;
-  }, [myVote]);
-
-  useEffect(() => {
-    function onConnect() { setIsConnected(true); }
+    function onConnect() { 
+        setIsConnected(true);
+        if (isHost) socket.emit('host_login');
+        socket.emit('request_state');
+    }
+    
     function onDisconnect() { setIsConnected(false); }
-    
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    
+
+    // 1. Generic State Update (Shared)
     socket.on('state_update', (state) => {
         setGameState(state);
     });
 
-    socket.on('stats_update', setStats);
-    socket.on('timer_update', setTimer);
+    // 2. Host Specific Update (Player List)
+    socket.on('host_state_update', (state) => {
+        setGameState(state); // Host gets a richer state object
+        if (state.players) setPlayerList(state.players);
+    });
+
+    // 3. Player Specific Data (Score & Vote Confirmation)
+    socket.on('player_data_update', (data) => {
+        if (data.score !== undefined) setMyScore(data.score);
+        if (data.myVote !== undefined) setMyVote(data.myVote);
+        if (data.roundResult) {
+            setFeedback(data.roundResult);
+            // Clear feedback after 3 seconds so it doesn't stick forever
+            setTimeout(() => setFeedback(null), 3000); 
+        }
+    });
+
+    // 4. Vote Registered Confirmation
+    socket.on('vote_registered', (vote) => {
+        setMyVote(vote);
+    });
     
+    // 5. New Round Reset
     socket.on('new_round', () => {
         setMyVote(null);
         setFeedback(null);
-        setResult(null);
     });
 
-    socket.on('vote_registered', (v) => {
-        setMyVote(v);
-    });
-    
-    socket.on('round_result', (data) => {
-        setResult(data);
-        // Use Ref to check vote so we don't depend on stale closure
-        if (myVoteRef.current) {
-            const success = String(myVoteRef.current).toUpperCase() === String(data.correctAnswer).toUpperCase();
-            setFeedback(success ? 'Correct' : 'Wrong');
-        }
+    // 6. Preload Assets (The Magic Fix for Lag)
+    socket.on('preload_assets', (urls) => {
+        console.log('Preloading assets...', urls);
+        urls.forEach(url => {
+            const img = new Image();
+            img.src = url;
+        });
     });
 
     socket.on('game_reset_event', () => {
@@ -56,19 +73,20 @@ export function useGameSocket() {
         window.location.reload(); 
     });
 
-    // Manual Handshake
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+
+    // Initial Handshake
     if (socket.connected) {
         onConnect();
-        socket.emit('request_state'); 
     } else {
         socket.connect();
     }
-    socket.on('connect', () => socket.emit('request_state'));
 
     return () => {
         socket.off();
     };
-  }, []); // Dependency array is EMPTY now to prevent re-binding
+  }, [isHost]);
 
   // Actions
   const joinGame = (name, sessionId) => socket.emit('join_game', { name, sessionId });
@@ -81,9 +99,8 @@ export function useGameSocket() {
   return {
     isConnected,
     gameState,
-    stats,
-    timer,
-    result,
+    playerList, // New export for Host
+    myScore,    // New export for Player
     myVote,
     feedback,
     actions: { joinGame, submitVote, adminStart, adminShowScores, adminNext, adminReset }
