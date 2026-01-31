@@ -94,7 +94,8 @@ export default function PlayerView() {
         {gameState.status === 'QUESTION' && (
             <>
                 <div className="bg-gray-100 rounded-2xl border-4 border-black overflow-hidden flex items-center justify-center mb-6 relative shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] aspect-square">
-                    <img src={`/assets/q${gameState.currentRoundIndex + 1}.webp`} className="object-cover h-full w-full" />
+                    {/* FIX: Use gameState.currentImage */}
+                    <img src={gameState.currentImage} className="object-cover h-full w-full" />
                     
                     {/* Timer */}
                     <div className="absolute top-2 right-2 w-12 h-12 bg-white text-black border-4 border-black rounded-full flex items-center justify-center font-black text-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">

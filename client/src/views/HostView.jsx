@@ -1,6 +1,5 @@
 import { useGameSocket } from '../hooks/useGameSocket';
 import Loader from '../components/Loader';
-import GameLayout from '../components/GameLayout';
 
 export default function HostView() {
   const { gameState, playerList, timer, actions } = useGameSocket(true);
@@ -15,7 +14,6 @@ export default function HostView() {
     if (confirm('Reset Game? All players will be kicked.')) actions.adminReset();
   };
 
-  // CHANGED: HUMAN -> REAL
   const totalVotes = (gameState.roundVotes?.REAL || 0) + (gameState.roundVotes?.AI || 0);
   const realPercent = totalVotes === 0 ? 50 : ((gameState.roundVotes?.REAL || 0) / totalVotes) * 100;
 
@@ -52,7 +50,6 @@ export default function HostView() {
                     <h2 className="text-6xl font-black mb-2">LOBBY</h2>
                     <p className="text-slate-500 font-medium text-xl">Waiting for players...</p>
                   </div>
-                  {/* CHANGED: Button Style matches theme */}
                   <button onClick={actions.adminStart} className="px-12 py-6 bg-black text-white hover:bg-slate-800 font-bold rounded-xl text-2xl uppercase tracking-widest transition-all shadow-[8px_8px_0px_0px_rgba(0,0,0,0.2)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 active:translate-y-0 active:shadow-none border-4 border-black">
                     Start Round
                   </button>
@@ -80,7 +77,8 @@ export default function HostView() {
         {gameState.status === 'QUESTION' && (
           <div className="w-full h-full flex flex-col relative">
              <div className="flex-1 bg-gray-50 rounded-3xl border-4 border-black relative flex items-center justify-center mb-8 overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-                <img src={`/assets/q${gameState.currentRoundIndex + 1}.webp`} className="max-h-full max-w-full object-contain" />
+                {/* FIX: Use gameState.currentImage instead of hardcoded webp */}
+                <img src={gameState.currentImage} className="max-h-full max-w-full object-contain" />
                 
                 <div className="absolute top-8 right-8 w-24 h-24 bg-white border-4 border-black rounded-full flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                     <span className="text-4xl font-black">{timer}</span>
@@ -102,7 +100,7 @@ export default function HostView() {
           </div>
         )}
 
-        {/* 3. REVEAL (Just Image + Result) */}
+        {/* 3. REVEAL */}
         {gameState.status === 'REVEAL' && gameState.result && (
            <div className="w-full h-full flex flex-col items-center">
               
@@ -113,7 +111,8 @@ export default function HostView() {
               </div>
               
               <div className="flex-1 w-full bg-gray-50 rounded-3xl border-4 border-black flex items-center justify-center p-4 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
-                  <img src={`/assets/q${gameState.currentRoundIndex + 1}.webp`} className="h-full w-auto object-contain" />
+                  {/* FIX: Use gameState.currentImage */}
+                  <img src={gameState.currentImage} className="h-full w-auto object-contain" />
               </div>
 
               <div className="mt-8 flex gap-4">

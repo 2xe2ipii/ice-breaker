@@ -28,22 +28,33 @@ export function useGameSocket(isHost = false) {
     
     function onDisconnect() { setIsConnected(false); }
 
+    // 1. Generic State Update
     socket.on('state_update', (state) => {
         setGameState(state);
         // Sync timer with server state initially
         if (state.timeLeft) setTimer(state.timeLeft);
     });
 
+    // 2. Host Specific Update
     socket.on('host_state_update', (state) => {
         setGameState(state);
         if (state.players) setPlayerList(state.players);
     });
 
-    // --- CRITICAL FIX: LISTENING TO TIMER UPDATE ---
+    // 3. Timer Update
     socket.on('timer_update', (time) => {
         setTimer(time);
     });
 
+    // 4. Stats (Vote Counts) Update - CRITICAL FIX FOR LIVE BAR
+    socket.on('stats_update', (roundVotes) => {
+        setGameState(prev => {
+            if (!prev) return prev;
+            return { ...prev, roundVotes };
+        });
+    });
+
+    // 5. Player Data (Score/Feedback)
     socket.on('player_data_update', (data) => {
         if (data.score !== undefined) setMyScore(data.score);
         if (data.myVote !== undefined) setMyVote(data.myVote);
@@ -76,7 +87,9 @@ export function useGameSocket(isHost = false) {
     if (socket.connected) onConnect();
     else socket.connect();
 
-    return () => socket.off();
+    return () => {
+        socket.off();
+    };
   }, [isHost]);
 
   const joinGame = (name, sessionId) => socket.emit('join_game', { name, sessionId });
@@ -93,7 +106,7 @@ export function useGameSocket(isHost = false) {
     myScore,
     myVote,
     feedback,
-    timer, // EXPORTING TIMER
+    timer,
     actions: { joinGame, submitVote, adminStart, adminShowScores, adminNext, adminReset }
   };
 }

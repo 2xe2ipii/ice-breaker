@@ -21,10 +21,10 @@ const ROUND_DURATION = 15; // Seconds
 const INITIAL_STATE = {
     status: 'LOBBY',           // LOBBY, QUESTION, REVEAL, LEADERBOARD, GAME_OVER
     currentRoundIndex: 0,
-    roundVotes: { AI: 0, REAL: 0 }, // CHANGED: HUMAN -> REAL
+    roundVotes: { AI: 0, REAL: 0 }, 
     timeLeft: 0,
-    lastResult: null,          // Persist the result for refreshes
-    gameFinished: false        // Track if game is done
+    lastResult: null,          
+    gameFinished: false        
 };
 
 let gameState = { ...INITIAL_STATE };
@@ -39,6 +39,8 @@ const buildGlobalState = () => ({
     currentRoundIndex: gameState.currentRoundIndex,
     roundVotes: gameState.roundVotes,
     timeLeft: gameState.timeLeft,
+    // FIX: Send the actual image path from gameData, handling mixed extensions
+    currentImage: questions[gameState.currentRoundIndex]?.content || null, 
     // If we are in REVEAL or LEADERBOARD or GAME_OVER, send the result. Otherwise null.
     result: (gameState.status === 'REVEAL' || gameState.status === 'LEADERBOARD' || gameState.status === 'GAME_OVER') 
             ? gameState.lastResult 
@@ -137,7 +139,7 @@ io.on('connection', (socket) => {
 
         // Reset Round State
         gameState.status = 'QUESTION';
-        gameState.roundVotes = { AI: 0, REAL: 0 }; // CHANGED: HUMAN -> REAL
+        gameState.roundVotes = { AI: 0, REAL: 0 }; 
         gameState.timeLeft = ROUND_DURATION;
         gameState.lastResult = null; // Clear previous result
         
@@ -195,7 +197,7 @@ io.on('connection', (socket) => {
         if (timerInterval) clearInterval(timerInterval);
         
         gameState = { ...INITIAL_STATE };
-        gameState.roundVotes = { AI: 0, REAL: 0 }; // CHANGED: HUMAN -> REAL
+        gameState.roundVotes = { AI: 0, REAL: 0 }; 
         playersPersistence = {}; 
         
         io.emit('game_reset_event');
