@@ -13,7 +13,7 @@ const getSessionId = () => {
 };
 
 export default function PlayerView() {
-  const { gameState, myVote, feedback, actions } = useGameSocket();
+  const { gameState, myScore, myVote, feedback, timer, actions } = useGameSocket();
   const [name, setName] = useState(localStorage.getItem('player_name') || '');
   const [hasJoined, setHasJoined] = useState(false);
 
@@ -34,61 +34,113 @@ export default function PlayerView() {
 
   if (!hasJoined) {
     return (
-      <div className="min-h-[100dvh] bg-slate-900 flex flex-col items-center justify-center p-6">
-        <h1 className="text-2xl font-bold text-white tracking-widest uppercase mb-8 border-b border-indigo-500 pb-2">Real or AI?</h1>
+      <div className="min-h-[100dvh] bg-white flex flex-col items-center justify-center p-6">
+        <h1 className="text-4xl font-black italic uppercase mb-8">Real or AI?</h1>
         <input 
-          className="bg-slate-800 border border-slate-700 text-white p-4 w-full rounded mb-4 focus:border-indigo-500 outline-none transition-colors"
-          placeholder="Enter your name"
+          className="bg-gray-100 border-2 border-black text-black text-lg p-4 w-full rounded-xl mb-4 focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all"
+          placeholder="ENTER YOUR NAME"
           value={name} onChange={e => setName(e.target.value)}
         />
-        <button onClick={handleJoin} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white p-4 font-bold rounded tracking-wider transition-all">
-          Join Game
+        <button onClick={handleJoin} className="w-full bg-[#fffd00] hover:bg-[#ebe900] text-black border-2 border-black p-4 font-bold text-xl rounded-xl tracking-wider shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-[2px] active:shadow-none transition-all">
+          JOIN GAME
         </button>
       </div>
     );
   }
 
-  if (!gameState || gameState.status === 'LOBBY') {
+  if (!gameState) {
     return (
-      <div className="min-h-[100dvh] bg-slate-900 flex items-center justify-center">
-        <Loader text="Waiting for host..." />
+      <div className="min-h-[100dvh] bg-white flex items-center justify-center">
+        <Loader text="Loading..." />
       </div>
     );
   }
 
-  if (gameState.status === 'QUESTION') {
-    return (
-      <div className="min-h-[100dvh] bg-slate-900 flex flex-col p-4">
-        <div className="flex-1 bg-slate-800 rounded border border-slate-700 overflow-hidden flex items-center justify-center mb-6 relative">
-             <img src={`/assets/q${gameState.currentRoundIndex + 1}.webp`} className="object-contain max-h-full w-full opacity-90" />
-             <div className="absolute top-2 right-2 px-2 py-1 bg-black/50 text-emerald-400 text-xs font-bold border border-emerald-500/30 rounded">LIVE</div>
-        </div>
-        <div className="space-y-4 pb-8">
-            <LongPressButton 
-                label="HUMAN" colorClass="bg-indigo-600"
-                onClick={() => actions.submitVote('HUMAN', getSessionId())}
-                selected={myVote === 'HUMAN'} disabled={!!myVote}
-            />
-            <LongPressButton 
-                label="AI" colorClass="bg-indigo-600"
-                onClick={() => actions.submitVote('AI', getSessionId())}
-                selected={myVote === 'AI'} disabled={!!myVote}
-            />
+  return (
+    <div className="min-h-[100dvh] bg-white text-slate-900 flex flex-col relative overflow-hidden">
+      
+      {/* HEADER */}
+      <div className="bg-white p-4 border-b-2 border-black flex justify-between items-center z-10 sticky top-0">
+        <span className="font-bold text-lg truncate max-w-[50%] uppercase">{name}</span>
+        <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Score</span>
+            <span className="text-black font-mono font-black text-2xl">{myScore}</span>
         </div>
       </div>
-    );
-  }
 
-  if (gameState.status === 'REVEAL' || gameState.status === 'LEADERBOARD') {
-    return (
-      <div className="min-h-[100dvh] bg-slate-900 flex flex-col items-center justify-center text-center p-6">
-        <h2 className={`text-6xl font-bold mb-4 ${feedback === 'Correct' ? 'text-emerald-400' : 'text-rose-500'}`}>
-            {feedback === 'Correct' ? 'CORRECT' : 'WRONG'}
-        </h2>
-        <p className="text-slate-400 text-lg">Look at the screen for the answer.</p>
+      {/* FEEDBACK OVERLAY */}
+      {feedback && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/90 backdrop-blur animate-in fade-in zoom-in duration-200">
+            <h1 className={`text-6xl font-black uppercase tracking-tighter italic ${feedback === 'CORRECT' ? 'text-[#00c9c7]' : 'text-rose-500'}`}>
+                {feedback}
+            </h1>
+        </div>
+      )}
+
+      {/* GAME CONTENT */}
+      <div className="flex-1 flex flex-col p-4 pb-8 max-w-md mx-auto w-full">
+        
+        {/* A. LOBBY */}
+        {gameState.status === 'LOBBY' && (
+           <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6">
+              <div className="w-16 h-16 border-4 border-black border-t-[#fd00ff] rounded-full animate-spin"></div>
+              <p className="text-slate-900 font-bold text-lg animate-pulse">
+                WAITING FOR HOST TO START...
+              </p>
+           </div>
+        )}
+
+        {/* B. QUESTION */}
+        {gameState.status === 'QUESTION' && (
+            <>
+                <div className="bg-gray-100 rounded-2xl border-2 border-black overflow-hidden flex items-center justify-center mb-6 relative shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] aspect-square">
+                    <img src={`/assets/q${gameState.currentRoundIndex + 1}.webp`} className="object-cover h-full w-full" />
+                    
+                    {/* Timer */}
+                    <div className="absolute top-2 right-2 w-10 h-10 bg-black text-white rounded-full flex items-center justify-center font-bold">
+                        {timer}
+                    </div>
+                </div>
+
+                <div className="flex-1 flex flex-col gap-4 justify-end">
+                    <LongPressButton 
+                        label="HUMAN" 
+                        colorClass="bg-[#00fffd] text-black border-black" // Cyan
+                        onClick={() => actions.submitVote('HUMAN', getSessionId())}
+                        selected={myVote === 'HUMAN'} disabled={!!myVote}
+                    />
+                    <LongPressButton 
+                        label="AI" 
+                        colorClass="bg-[#fd00ff] text-white border-black" // Magenta
+                        onClick={() => actions.submitVote('AI', getSessionId())}
+                        selected={myVote === 'AI'} disabled={!!myVote}
+                    />
+                </div>
+            </>
+        )}
+
+        {/* C. REVEAL / LEADERBOARD */}
+        {(gameState.status === 'REVEAL' || gameState.status === 'LEADERBOARD') && !feedback && (
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-6 animate-in fade-in">
+                <div className="text-6xl mb-4">👀</div>
+                <h2 className="text-3xl font-black italic uppercase mb-2">Eyes on the TV</h2>
+                <p className="text-slate-500 font-medium">Check the results on the big screen.</p>
+            </div>
+        )}
+
+        {/* D. GAME OVER */}
+        {gameState.status === 'GAME_OVER' && (
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
+                <h1 className="text-5xl font-black text-black italic mb-2">GAME OVER</h1>
+                <p className="text-slate-500 font-bold mb-8">THANKS FOR PLAYING!</p>
+                <div className="bg-[#fffd00] p-8 rounded-2xl border-4 border-black w-full shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                    <div className="text-black font-bold text-sm uppercase tracking-widest mb-2">Your Final Score</div>
+                    <div className="text-6xl font-mono font-black text-black">{myScore}</div>
+                </div>
+            </div>
+        )}
+
       </div>
-    );
-  }
-
-  return null;
+    </div>
+  );
 }
