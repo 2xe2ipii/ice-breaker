@@ -18,7 +18,7 @@ const getSessionId = () => {
   return id;
 };
 
-// MOVED OUTSIDE to prevent re-renders losing input focus
+// MOVED OUTSIDE: This prevents the component from re-mounting on every render
 const MobileWrapper = ({ children, className = "" }) => (
   <div className={`min-h-[100dvh] w-full bg-slate-900 flex flex-col items-center justify-center`}>
     <div className={`w-full max-w-[450px] h-[100dvh] bg-white shadow-2xl overflow-hidden flex flex-col relative ${className}`}>
@@ -78,7 +78,7 @@ export default function PlayerView() {
             
             <h1 className="text-6xl font-black italic uppercase text-center mb-12 transform -skew-x-6 z-10 leading-none">
                 REAL<br/>
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00fffd] to-[#fd00ff]">OR AI?</span>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00fffd] to-[#fd00ff] px-1">OR AI?</span>
             </h1>
 
             <div className="w-full space-y-6 z-10">
@@ -89,6 +89,7 @@ export default function PlayerView() {
                     onChange={e => setName(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
                     maxLength={12}
+                    autoFocus
                 />
                 <button 
                     onClick={handleJoin} 

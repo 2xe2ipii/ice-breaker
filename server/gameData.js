@@ -2,7 +2,7 @@ module.exports = [
     {
         id: 1,
         type: 'image',
-        content: '/assets/q1.webp',
+        content: '/assets/q4.webp',
         question: "Real or AI?",
         answer: 'AI' 
     },
@@ -19,5 +19,26 @@ module.exports = [
         content: '/assets/q3.webp',
         question: "Real or AI?",
         answer: 'AI' 
+    },
+    {
+        id: 4,
+        type: 'image',
+        content: '/assets/q4.webp',
+        question: "Real or AI?",
+        answer: 'AI' 
+    },
+    {
+        id: 5,
+        type: 'image',
+        content: '/assets/q5.webp',
+        question: "Real or AI?",
+        answer: 'AI' 
+    },
+    {
+        id: 6,
+        type: 'image',
+        content: '/assets/q5.webp',
+        question: "Real or AI?",
+        answer: 'HUMAN' 
     }
 ];

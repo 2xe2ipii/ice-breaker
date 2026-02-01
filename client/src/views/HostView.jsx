@@ -1,14 +1,48 @@
+import { useState } from 'react';
 import { useGameSocket } from '../hooks/useGameSocket';
 import Loader from '../components/Loader';
 
 export default function HostView() {
-  const { gameState, playerList, timer, actions } = useGameSocket(true);
+  const { gameState, playerList, timer, authError, isConnected, actions } = useGameSocket(true);
+  const [password, setPassword] = useState('');
 
-  if (!gameState) return (
+  if (!isConnected) return (
     <div className="h-screen w-full flex items-center justify-center bg-white">
         <Loader text="Connecting..." />
     </div>
   );
+
+  // --- LOGIN SCREEN ---
+  if (!gameState) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-white flex-col p-8 selection:bg-[#fffd00]">
+        <h1 className="text-6xl font-black italic uppercase mb-12 transform -skew-x-6 tracking-tighter">
+            HOST
+        </h1>
+        <div className="w-full max-w-md space-y-6">
+            <input 
+                type="password"
+                className="w-full border-4 border-black p-6 text-3xl font-black text-center focus:outline-none focus:shadow-[8px_8px_0px_rgba(0,0,0,1)] transition-all placeholder:text-gray-200"
+                placeholder="PASSWORD"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && actions.loginHost(password)}
+            />
+            <button 
+                onClick={() => actions.loginHost(password)}
+                className="w-full py-6 bg-black text-[#fffd00] text-3xl font-black uppercase tracking-widest border-4 border-black hover:bg-slate-800 active:translate-y-1 transition-all shadow-[8px_8px_0px_rgba(0,0,0,0.2)]"
+            >
+                LOGIN
+            </button>
+            {authError && (
+                <div className="bg-rose-500 text-white p-4 text-center font-bold border-4 border-black uppercase tracking-widest animate-pulse">
+                    {authError}
+                </div>
+            )}
+        </div>
+      </div>
+    );
+  }
 
   const handleReset = () => {
     if (confirm('Reset Game? All players will be kicked.')) actions.adminReset();
@@ -23,7 +57,7 @@ export default function HostView() {
   return (
     <div className="h-[100dvh] w-full bg-white text-black font-sans flex flex-col overflow-hidden selection:bg-[#fffd00]">
       
-      {/* Added pr-8 to fix cutoff */}
+      {/* Added pr-12 to fix text clipping on the right */}
       <div className="h-24 border-b-4 border-black flex justify-between items-center px-10 pr-12 bg-white shrink-0">
         <h1 className="text-4xl font-black tracking-tighter uppercase italic transform -skew-x-6">
             REAL OR AI?
@@ -42,14 +76,14 @@ export default function HostView() {
         
         {gameState.status === 'LOBBY' && (
            <div className="w-full h-full flex">
-              {/* LEFT: QR CODE */}
+              {/* LEFT: QR CODE AREA */}
               <div className="w-7/12 border-r-4 border-black flex flex-col items-center justify-center p-12 bg-[#00fffd]/10">
-                  <div className="w-full max-w-xl text-center space-y-8 flex flex-col items-center">
+                  <div className="flex flex-col items-center gap-8">
                       <div className="bg-white border-4 border-black p-4 shadow-[12px_12px_0px_rgba(0,0,0,1)] w-[400px] h-[400px] flex items-center justify-center bg-[url('https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=http://localhost:5173')] bg-contain bg-no-repeat bg-center">
-                          {/* Placeholder if image fails */}
+                          {/* Placeholder image handled by CSS bg-image. In prod, replace localhost with window.location.host */}
                       </div>
                       <div className="bg-black text-[#fffd00] px-8 py-4 transform -skew-x-6 shadow-[8px_8px_0px_rgba(0,0,0,0.2)]">
-                          <p className="text-xl font-bold uppercase tracking-widest mb-1">Join at:</p>
+                          <p className="text-xl font-bold uppercase tracking-widest mb-1 text-center">Join at:</p>
                           <p className="text-5xl font-black tracking-tighter">
                             {window.location.host}
                           </p>

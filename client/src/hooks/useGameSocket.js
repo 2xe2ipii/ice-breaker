@@ -4,9 +4,8 @@ import { socket } from '../socket';
 export function useGameSocket(isHost = false) {
   const [gameState, setGameState] = useState(null);
   const [isConnected, setIsConnected] = useState(socket.connected);
-  
-  // Timer State 
   const [timer, setTimer] = useState(0);
+  const [authError, setAuthError] = useState(null);
 
   // Player Specific Data
   const [myScore, setMyScore] = useState(0);
@@ -20,14 +19,10 @@ export function useGameSocket(isHost = false) {
   useEffect(() => { myVoteRef.current = myVote; }, [myVote]);
 
   useEffect(() => {
-    // Handler functions defined inside effect to access state setters
-    // (or could be outside if setters are stable, but this is cleaner for cleanup)
-    
     function onConnect() { 
         setIsConnected(true);
-        // SECURITY FIX: Send password for simple auth
-        if (isHost) socket.emit('host_login', 'admin'); 
-        socket.emit('request_state');
+        // Only players request generic state immediately. Hosts must login manually.
+        if (!isHost) socket.emit('request_state');
     }
     
     function onDisconnect() { setIsConnected(false); }
@@ -81,7 +76,10 @@ export function useGameSocket(isHost = false) {
         window.location.reload(); 
     }
 
-    // Attach Listeners
+    function onLoginError(msg) {
+        setAuthError(msg);
+    }
+
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('state_update', onStateUpdate);
@@ -93,12 +91,11 @@ export function useGameSocket(isHost = false) {
     socket.on('new_round', onNewRound);
     socket.on('preload_assets', onPreloadAssets);
     socket.on('game_reset_event', onGameReset);
+    socket.on('login_error', onLoginError);
 
-    // Initial check
     if (socket.connected) onConnect();
     else socket.connect();
 
-    // CRITICAL FIX: CLEANUP ONLY SPECIFIC LISTENERS
     return () => {
         socket.off('connect', onConnect);
         socket.off('disconnect', onDisconnect);
@@ -111,11 +108,18 @@ export function useGameSocket(isHost = false) {
         socket.off('new_round', onNewRound);
         socket.off('preload_assets', onPreloadAssets);
         socket.off('game_reset_event', onGameReset);
+        socket.off('login_error', onLoginError);
     };
   }, [isHost]);
 
   const joinGame = (name, sessionId) => socket.emit('join_game', { name, sessionId });
   const submitVote = (vote, sessionId) => socket.emit('submit_vote', { vote, sessionId });
+  
+  const loginHost = (password) => {
+      setAuthError(null);
+      socket.emit('host_login', password);
+  };
+
   const adminStart = () => socket.emit('admin_start_round');
   const adminShowScores = () => socket.emit('admin_show_leaderboard');
   const adminNext = () => socket.emit('admin_next_round');
@@ -129,6 +133,7 @@ export function useGameSocket(isHost = false) {
     myVote,
     feedback,
     timer,
-    actions: { joinGame, submitVote, adminStart, adminShowScores, adminNext, adminReset }
+    authError,
+    actions: { joinGame, submitVote, loginHost, adminStart, adminShowScores, adminNext, adminReset }
   };
 }

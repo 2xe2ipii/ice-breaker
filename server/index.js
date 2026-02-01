@@ -2,7 +2,9 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const path = require('path');
 const questions = require('./gameData'); 
+require('dotenv').config();
 
 const app = express();
 app.use(cors());
@@ -40,7 +42,6 @@ const buildGlobalState = () => ({
             ? gameState.lastResult 
             : null,
     totalRounds: TOTAL_ROUNDS,
-    // ADDED: Let everyone see how many players are connected
     playerCount: Object.keys(playersPersistence).length
 });
 
@@ -51,6 +52,14 @@ const buildHostState = () => ({
         score: p.score, 
         connected: p.socketId !== null 
     }))
+});
+
+// Serve React App
+app.use(express.static(path.join(__dirname, '../client/dist')));
+
+// FIX: Use Regex /.*/ instead of string '*' to support Express 5
+app.get(/.*/, (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/dist/index.html'));
 });
 
 io.on('connection', (socket) => {
@@ -98,6 +107,8 @@ io.on('connection', (socket) => {
             authorizedHosts.add(socket.id);
             socket.join('host_room');
             socket.emit('host_state_update', buildHostState());
+        } else {
+            socket.emit('login_error', 'Invalid Password');
         }
     });
 
