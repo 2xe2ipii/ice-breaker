@@ -78,7 +78,7 @@ export default function PlayerView() {
             
             <h1 className="text-6xl font-black italic uppercase text-center mb-12 transform -skew-x-6 z-10 leading-none">
                 REAL<br/>
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00fffd] to-[#fd00ff] px-1">OR AI?</span>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00fffd] to-[#fd00ff] px-3">OR AI?</span>
             </h1>
 
             <div className="w-full space-y-6 z-10">

@@ -79,9 +79,13 @@ export default function HostView() {
               {/* LEFT: QR CODE AREA */}
               <div className="w-7/12 border-r-4 border-black flex flex-col items-center justify-center p-12 bg-[#00fffd]/10">
                   <div className="flex flex-col items-center gap-8">
-                      <div className="bg-white border-4 border-black p-4 shadow-[12px_12px_0px_rgba(0,0,0,1)] w-[400px] h-[400px] flex items-center justify-center bg-[url('https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=http://localhost:5173')] bg-contain bg-no-repeat bg-center">
-                          {/* Placeholder image handled by CSS bg-image. In prod, replace localhost with window.location.host */}
-                      </div>
+                      <div className="bg-white border-4 border-black p-4 shadow-[12px_12px_0px_rgba(0,0,0,1)] w-[400px] h-[400px] flex items-center justify-center">
+                        <img 
+                        src="/qr_code.png" 
+                        alt="Join Game QR" 
+                        className="w-full h-full object-contain" 
+                        />
+                    </div>
                       <div className="bg-black text-[#fffd00] px-8 py-4 transform -skew-x-6 shadow-[8px_8px_0px_rgba(0,0,0,0.2)]">
                           <p className="text-xl font-bold uppercase tracking-widest mb-1 text-center">Join at:</p>
                           <p className="text-5xl font-black tracking-tighter">
