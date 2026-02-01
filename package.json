@@ -1,0 +1,13 @@
+{
+  "name": "ice-breaker-root",
+  "version": "1.0.0",
+  "scripts": {
+    "install-all": "npm install --prefix client && npm install --prefix server",
+    "build-client": "npm run build --prefix client",
+    "build": "npm run install-all && npm run build-client",
+    "start": "node server/index.js"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}
